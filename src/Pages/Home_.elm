@@ -27,6 +27,8 @@ page =
 type alias Model =
     { enemyHealth : Int
     , playerHealth : Int
+    , message : Maybe String
+    , isChoosingMove : Bool
     }
 
 
@@ -34,6 +36,8 @@ init : Model
 init =
     { enemyHealth = maxHealth
     , playerHealth = maxHealth
+    , message = Nothing
+    , isChoosingMove = False
     }
 
 
@@ -48,8 +52,34 @@ maxHealth =
 
 type Msg
     = UserClickedFight
+    | UserClickedPokemon
+    | UserClickedItems
     | UserClickedRun
     | UserClickedPlayAgain
+    | UserClickedMove KittyMove
+
+
+type KittyMove
+    = Claw
+    | Hiss
+    | Meow
+    | Sits
+
+
+kittyMoveToString : KittyMove -> String
+kittyMoveToString kittyMove =
+    case kittyMove of
+        Claw ->
+            "Claw"
+
+        Hiss ->
+            "Hiss"
+
+        Meow ->
+            "Meow"
+
+        Sits ->
+            "Sits"
 
 
 update : Msg -> Model -> Model
@@ -57,18 +87,23 @@ update msg model =
     case msg of
         UserClickedFight ->
             { model
-                | enemyHealth =
-                    Basics.max
-                        0
-                        (model.enemyHealth - 10)
+                | message = Just "What should Kitty do?"
+                , isChoosingMove = True
+            }
+
+        UserClickedPokemon ->
+            { model
+                | message = Just "Kitty is your last Jokemon!"
+            }
+
+        UserClickedItems ->
+            { model
+                | message = Just "You ain't got none!"
             }
 
         UserClickedRun ->
             { model
-                | playerHealth =
-                    Basics.max
-                        0
-                        (model.playerHealth - 10)
+                | message = Just "There's no running from a Jokemon battle!"
             }
 
         UserClickedPlayAgain ->
@@ -76,6 +111,22 @@ update msg model =
                 | enemyHealth = maxHealth
                 , playerHealth = maxHealth
             }
+
+        UserClickedMove kittyMove ->
+            { model
+                | message = Just ("Kitty used " ++ kittyMoveToString kittyMove)
+                , isChoosingMove = False
+            }
+
+
+dealDamageToEnemy : Model -> Model
+dealDamageToEnemy model =
+    { model
+        | enemyHealth =
+            Basics.max
+                0
+                (model.enemyHealth - 10)
+    }
 
 
 
@@ -101,7 +152,7 @@ view model =
 
              else
                 [ viewFightScene model
-                , viewControls
+                , viewControls model
                 ]
             )
         ]
@@ -195,25 +246,46 @@ viewPlayerRow playerHealth =
         ]
 
 
-viewControls : Html Msg
-viewControls =
+viewControls : Model -> Html Msg
+viewControls model =
     div [ class "row border-top-regular" ]
-        [ span [ class "fill" ] []
+        [ span [ class "fill pad-sm", Attr.style "width" "10rem" ]
+            [ case model.message of
+                Just message ->
+                    text message
+
+                Nothing ->
+                    text ""
+            ]
         , span [ class "fill pad-sm" ]
-            [ div [ class "grid border-regular pad-md" ]
-                [ button
-                    [ Html.Events.onClick UserClickedFight
+            [ div [ class "grid border-regular pad-sm gap-sm" ]
+                (if model.isChoosingMove then
+                    List.map viewMoveButton [ Claw, Hiss, Meow, Sits ]
+
+                 else
+                    [ button
+                        [ Html.Events.onClick UserClickedFight ]
+                        [ text "Fight" ]
+                    , button
+                        [ Html.Events.onClick UserClickedPokemon ]
+                        [ text "PKMN" ]
+                    , button
+                        [ Html.Events.onClick UserClickedItems ]
+                        [ text "Item" ]
+                    , button
+                        [ Html.Events.onClick UserClickedRun ]
+                        [ text "Run" ]
                     ]
-                    [ text "Fight" ]
-                , button [] [ text "PKMN" ]
-                , button [] [ text "Item" ]
-                , button
-                    [ Html.Events.onClick UserClickedRun
-                    ]
-                    [ text "Run" ]
-                ]
+                )
             ]
         ]
+
+
+viewMoveButton : KittyMove -> Html Msg
+viewMoveButton kittyMove =
+    button
+        [ Html.Events.onClick (UserClickedMove kittyMove) ]
+        [ text (kittyMoveToString kittyMove) ]
 
 
 viewPlayAgainButton : Html Msg

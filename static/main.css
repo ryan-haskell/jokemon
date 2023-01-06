@@ -70,6 +70,10 @@ html { font-size: 2vmin; }
 .col:where(.center-h) { justify-content: center; }
 
 
+.gap-sm {
+  gap: 1rem;
+}
+
 .gap-md {
   gap: 2rem;
 }
