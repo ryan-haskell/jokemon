@@ -4,6 +4,8 @@ import Html exposing (..)
 import Html.Attributes as Attr exposing (class, classList, max, value)
 import Html.Events
 import Page exposing (Page)
+import Process
+import Task
 import View exposing (View)
 
 
@@ -13,10 +15,11 @@ import View exposing (View)
 
 page : Page Model Msg
 page =
-    Page.sandbox
+    Page.element
         { init = init
         , update = update
         , view = view
+        , subscriptions = subscriptions
         }
 
 
@@ -38,6 +41,7 @@ type Status
     | NoItemsAvailable
     | OnLastJokemon
     | UsingMove KittyMove
+    | ShowMoveEffect String
 
 
 fromStatusToMessage : Status -> String
@@ -61,13 +65,18 @@ fromStatusToMessage status =
         UsingMove kittyMove ->
             "Kitty used " ++ kittyMoveToString kittyMove
 
+        ShowMoveEffect message ->
+            message
 
-init : Model
+
+init : ( Model, Cmd Msg )
 init =
-    { enemyHealth = maxHealth
-    , playerHealth = maxHealth
-    , status = WaitingForPlayer
-    }
+    ( { enemyHealth = maxHealth
+      , playerHealth = maxHealth
+      , status = WaitingForPlayer
+      }
+    , Cmd.none
+    )
 
 
 maxHealth : Int
@@ -86,6 +95,8 @@ type Msg
     | UserClickedRun
     | UserClickedPlayAgain
     | UserClickedMove KittyMove
+    | MoveTimerStarted KittyMove
+    | MoveTimerCompleted
 
 
 type KittyMove
@@ -111,42 +122,94 @@ kittyMoveToString kittyMove =
             "Sits"
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UserClickedFight ->
-            { model | status = ChoosingMove }
+            ( { model | status = ChoosingMove }
+            , Cmd.none
+            )
 
         UserClickedPokemon ->
-            { model | status = OnLastJokemon }
+            ( { model | status = OnLastJokemon }
+            , Cmd.none
+            )
 
         UserClickedItems ->
-            { model | status = NoItemsAvailable }
+            ( { model | status = NoItemsAvailable }
+            , Cmd.none
+            )
 
         UserClickedRun ->
-            { model | status = FailedToEscape }
+            ( { model | status = FailedToEscape }
+            , Cmd.none
+            )
 
         UserClickedPlayAgain ->
-            { model
+            ( { model
                 | enemyHealth = maxHealth
                 , playerHealth = maxHealth
                 , status = WaitingForPlayer
-            }
+              }
+            , Cmd.none
+            )
 
         UserClickedMove kittyMove ->
-            { model
+            ( { model
                 | status = UsingMove kittyMove
-            }
+              }
+            , delay 1000 (MoveTimerStarted kittyMove)
+            )
+
+        MoveTimerStarted Claw ->
+            ( { model | status = ShowMoveEffect "Doge was clawed!" }
+                |> dealDamageToEnemy 10
+            , delay 1000 MoveTimerCompleted
+            )
+
+        MoveTimerStarted Hiss ->
+            ( { model | status = ShowMoveEffect "Kitty hissed so loud!" }
+                |> dealDamageToEnemy 20
+            , delay 1000 MoveTimerCompleted
+            )
+
+        MoveTimerStarted Meow ->
+            ( { model | status = ShowMoveEffect "Kitty's meow was ok!" }
+                |> dealDamageToEnemy 5
+            , delay 1000 MoveTimerCompleted
+            )
+
+        MoveTimerStarted Sits ->
+            ( { model | status = ShowMoveEffect "Kitty sat in a box!" }
+                |> dealDamageToEnemy 50
+            , delay 1000 MoveTimerCompleted
+            )
+
+        MoveTimerCompleted ->
+            ( { model | status = WaitingForPlayer }
+            , Cmd.none
+            )
 
 
-dealDamageToEnemy : Model -> Model
-dealDamageToEnemy model =
+delay : Float -> Msg -> Cmd Msg
+delay time msg =
+    Process.sleep time
+        |> Task.perform (\_ -> msg)
+
+
+dealDamageToEnemy : Int -> Model -> Model
+dealDamageToEnemy amount model =
     { model
         | enemyHealth =
             Basics.max
                 0
-                (model.enemyHealth - 10)
+                (model.enemyHealth - amount)
     }
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.none
 
 
 
@@ -182,13 +245,23 @@ view model =
 viewFightScene : Model -> Html msg
 viewFightScene model =
     div [ class "col pad-md gap-md" ]
-        [ viewEnemyRow model.enemyHealth
+        [ viewEnemyRow model
         , viewPlayerRow model.playerHealth
         ]
 
 
-viewEnemyRow : Int -> Html msg
-viewEnemyRow enemyHealth =
+viewEnemyRow : Model -> Html msg
+viewEnemyRow { status, enemyHealth } =
+    let
+        withFlashingIfUnderAttack : Html msg -> Html msg
+        withFlashingIfUnderAttack innerView =
+            case status of
+                ShowMoveEffect _ ->
+                    div [ class "flash" ] [ innerView ]
+
+                _ ->
+                    innerView
+    in
     div [ class "row center-h gap-md pad-x-md" ]
         [ viewPokemonStatus
             { name = "Doge"
@@ -196,7 +269,8 @@ viewEnemyRow enemyHealth =
             , health = ( enemyHealth, maxHealth )
             , border = BottomLeft
             }
-        , viewSprite "🐕"
+        , withFlashingIfUnderAttack
+            (viewSprite "🐕")
         ]
 
 
