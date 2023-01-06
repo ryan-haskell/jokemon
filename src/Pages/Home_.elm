@@ -27,17 +27,46 @@ page =
 type alias Model =
     { enemyHealth : Int
     , playerHealth : Int
-    , message : Maybe String
-    , isChoosingMove : Bool
+    , status : Status
     }
+
+
+type Status
+    = WaitingForPlayer
+    | ChoosingMove
+    | FailedToEscape
+    | NoItemsAvailable
+    | OnLastJokemon
+    | UsingMove KittyMove
+
+
+fromStatusToMessage : Status -> String
+fromStatusToMessage status =
+    case status of
+        WaitingForPlayer ->
+            "What will you do?"
+
+        ChoosingMove ->
+            "What move should Kitty use?"
+
+        FailedToEscape ->
+            "There's no running from a doge!"
+
+        NoItemsAvailable ->
+            "You ain't got none!"
+
+        OnLastJokemon ->
+            "Kitty is your only hope!"
+
+        UsingMove kittyMove ->
+            "Kitty used " ++ kittyMoveToString kittyMove
 
 
 init : Model
 init =
     { enemyHealth = maxHealth
     , playerHealth = maxHealth
-    , message = Nothing
-    , isChoosingMove = False
+    , status = WaitingForPlayer
     }
 
 
@@ -86,36 +115,27 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         UserClickedFight ->
-            { model
-                | message = Just "What should Kitty do?"
-                , isChoosingMove = True
-            }
+            { model | status = ChoosingMove }
 
         UserClickedPokemon ->
-            { model
-                | message = Just "Kitty is your last Jokemon!"
-            }
+            { model | status = OnLastJokemon }
 
         UserClickedItems ->
-            { model
-                | message = Just "You ain't got none!"
-            }
+            { model | status = NoItemsAvailable }
 
         UserClickedRun ->
-            { model
-                | message = Just "There's no running from a Jokemon battle!"
-            }
+            { model | status = FailedToEscape }
 
         UserClickedPlayAgain ->
             { model
                 | enemyHealth = maxHealth
                 , playerHealth = maxHealth
+                , status = WaitingForPlayer
             }
 
         UserClickedMove kittyMove ->
             { model
-                | message = Just ("Kitty used " ++ kittyMoveToString kittyMove)
-                , isChoosingMove = False
+                | status = UsingMove kittyMove
             }
 
 
@@ -250,16 +270,11 @@ viewControls : Model -> Html Msg
 viewControls model =
     div [ class "row border-top-regular" ]
         [ span [ class "fill pad-sm", Attr.style "width" "10rem" ]
-            [ case model.message of
-                Just message ->
-                    text message
-
-                Nothing ->
-                    text ""
+            [ text (fromStatusToMessage model.status)
             ]
         , span [ class "fill pad-sm" ]
             [ div [ class "grid border-regular pad-sm gap-sm" ]
-                (if model.isChoosingMove then
+                (if model.status == ChoosingMove then
                     List.map viewMoveButton [ Claw, Hiss, Meow, Sits ]
 
                  else
